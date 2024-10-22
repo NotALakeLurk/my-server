@@ -13,18 +13,18 @@
 // custom errors are positive
 enum HTTP_ErrType {
     // errno errors
-    HTTP_EMALLOC = -6,
     HTTP_ECLOSE = -5,
     HTTP_ELISTEN = -4,
     HTTP_EBIND = -3,
     HTTP_ESETSOCKOPT = -2,
-    HTTP_ESOCKET = -1,
+    HTTP_EMALLOC = -1,
 
     // non-error / Ok
     HTTP_ENOERROR = 0, // default, result when no error occured
 
     // special errors
-    HTTP_EAIERROR
+    HTTP_EAIERROR,
+    HTTP_ESOCKET
 };
 
 union HTTP_ErrInfo {
@@ -41,7 +41,8 @@ struct HTTP_Error {
 
 // not exposed in api
 // the strings for our errors
-char *HTTP_ENOERROR_STRING = "No error occured";
+const char *const HTTP_ENOERROR_STRING = "No error occured";
+const char *const HTTP_ESOCKET_STRING = "Failed to configure any sockets";
 
 // get the string representation of an error
 const char *HTTP_strerror(const struct HTTP_Error err) {
@@ -53,11 +54,13 @@ const char *HTTP_strerror(const struct HTTP_Error err) {
             return HTTP_ENOERROR_STRING;
         case HTTP_EAIERROR: // handle `getaddressinfo` errors
             return gai_strerror(err.err_info.ai_error);
+        case HTTP_ESOCKET: // handle socket configuration errors
+            return HTTP_ESOCKET_STRING;
         break;
     }
 }
 
-// print an HTTP_errno to stderr (like perror)
+// print an HTTP_Error to stderr (like perror)
 void HTTP_perror(const char *message, const struct HTTP_Error err) {
     fprintf(stderr, "%s: %s", message, HTTP_strerror(err));
 }
@@ -65,10 +68,13 @@ void HTTP_perror(const char *message, const struct HTTP_Error err) {
 struct HTTP_Server {
     int socket_fd;
 
-    struct addrinfo *addrinfo; // the current address of the server (result of
+    // potentially remove addrinfo entirely, as socket holds info?
+    // `getsockname` could be used to get socket address when necessary,
+    // though perhaps requireing
+    /*struct addrinfo *addrinfo; // the current address of the server (result of
                                // `getaddrinfo`, is linked list, may be invalid)
     struct addrinfo *_addrinfo_free_ptr; // pointer to free the result linked-
-                                         // list of `getaddrinfo`
+                                         // list of `getaddrinfo`*/
 
     int listen_backlog;
 
@@ -105,18 +111,20 @@ struct HTTP_Error HTTP_create_server(
     //http_server->address.sin_addr.s_addr = htonl(INADDR_ANY); // should be 0.0.0.0 (broadcast/any)
     //http_server->address.sin_port = htons(port);
     
-    status = getaddrinfo(NULL, "8080", &hints, &res_addr);
+    int status = getaddrinfo(NULL, "8080", &hints, &res_addr);
     if (status != 0) {
         // return error
         error.err_type = HTTP_EAIERROR;
         error.err_info.ai_error = status;
         return error;
     }
+    /*
     // keep in mind that the returned addrinfo may not contain a valid address
     http_server->addrinfo = res_addr;
     http_server->_addrinfo_free_ptr = res_addr;
+    */
 
-    // configure the socket for the server
+    // configure a socket for the server
     
     // taken from `man getaddrinfo`:
     /* getaddrinfo() returns a list of address structures.
@@ -125,7 +133,7 @@ struct HTTP_Error HTTP_create_server(
        and) try the next address. */
     // in this case, we're not giving much error other than failed to configure
     // socket, unfortunately
-    for (rp = result; rp != NULL; rp = rp->ai_next) {
+    for (rp = res_addr; rp != NULL; rp = rp->ai_next) {
         http_server->socket_fd = socket(
             rp->ai_family,
             rp->ai_socktype,
@@ -155,6 +163,12 @@ struct HTTP_Error HTTP_create_server(
  
     freeaddrinfo(result);           /* No longer needed */
 
+    if (http_server->socket_fd == -1) {
+      error.err_type = HTTP_ESOCKET;
+      return error;
+    }
+
+    /*
     // create a socket for the server
     http_server->socket_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (http_server->socket_fd == -1) {
@@ -162,6 +176,7 @@ struct HTTP_Error HTTP_create_server(
         error.err_info.errno_val = errno;
         return error;
     }
+    */
 
     // allocate the read buffer
     http_server->buf_len = buffer_size;
@@ -173,12 +188,19 @@ struct HTTP_Error HTTP_create_server(
         return error;
     }
 
+    // start listening on the socket
+    if (listen(http_server->socket_fd, http_server->listen_backlog) == -1) {
+        error.err_type = HTTP_ELISTEN;
+        error.err_info.errno_val = errno;
+        return error;
+    }
+
     // return HTTP_ENOERROR
     return error;
 }
 
 /* Bind an HTTP_Server's socket and start listening. Should be accompanied by
-   a call to `HTTP_stop_server` to close the stream and tidy up when done. */
+   a call to `HTTP_stop_server` to close the stream and tidy up when done. *\/
 struct HTTP_Error HTTP_start_server(struct HTTP_Server *http_server) {
     // TODO: create socket if it is null (if server is restarting)
     // HTTP_create_socket(http_server) as a general solution might be better?
@@ -208,6 +230,7 @@ struct HTTP_Error HTTP_start_server(struct HTTP_Server *http_server) {
     // success, most outputs go through *http_server
     return error;
 }
+*/
 
 /* Close an HTTP_Server's socket. Is a minimal wrapper over `close`. */
 struct HTTP_Error HTTP_stop_server(struct HTTP_Server *http_server) {

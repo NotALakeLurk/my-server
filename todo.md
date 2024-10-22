@@ -5,6 +5,7 @@
 - refactor `HTTP_*` functions to better fit `C`-style naming conventinos (=|:3)
     - look at `getaddrinfo` and `freeaddrinfo` for inspiration?
     - `C` likes "free" rather than "destroy", "create" may be fine?
+- update header to match!
 
 # medium-term: start doing HTTP stuff
 - use `<string.h>` functions to find headers in received HTTP request
