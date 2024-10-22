@@ -11,6 +11,8 @@
    Positive errors are custom errors that may be encountered. */
 enum HTTP_errno {
     // errno errors
+    HTTP_EALLOC = -6, /* `calloc`, `malloc`, `realloc` or `reallocarray`
+                         encountered a problem */
     HTTP_ECLOSE = -5, /* `close` encountered a problem */
     HTTP_ELISTEN = -4, /* `listen` encountered a problem */
     HTTP_EBIND = -3, /* `bind` encountered a problem */
@@ -39,6 +41,9 @@ struct HTTP_Server {
     int listen_backlog; /* How many pending connections the system should
                            keep waiting in the background. Default set to
                            `SOMAXCONN`. */
+    char *buffer; /* The buffer to read messages into. Allocated by
+                     `HTTP_create_server` */
+    size_t buf_len; /* The length of the buffer in bytes. */
 };
 
 /* Create a new HTTP_Server that listens on the given port.
