@@ -8,6 +8,10 @@
 
 int main(int argc, char **argv) {
     struct HTTP_Server server;
+
+    HTTP_create_server(&server)
+    /*
+    struct HTTP_Server server;
     enum HTTP_errno err;
 
     err = HTTP_create_server(&server, 8080u);
@@ -65,4 +69,5 @@ int main(int argc, char **argv) {
     err = HTTP_destroy_server(&server);
 
     return EXIT_SUCCESS;
+    */
 }
